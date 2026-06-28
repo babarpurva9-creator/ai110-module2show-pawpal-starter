@@ -1,5 +1,7 @@
 import streamlit as st
 
+from pawpal import Owner, Pet, Activity, Calendar
+
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
@@ -40,6 +42,9 @@ st.divider()
 
 st.subheader("Quick Demo Inputs (UI only)")
 owner_name = st.text_input("Owner name", value="Jordan")
+available_minutes = st.number_input(
+    "Time available today (minutes)", min_value=5, max_value=600, value=60, step=5
+)
 pet_name = st.text_input("Pet name", value="Mochi")
 species = st.selectbox("Species", ["dog", "cat", "other"])
 
@@ -74,15 +79,41 @@ st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
 
 if st.button("Generate schedule"):
-    st.warning(
-        "Not implemented yet. Next step: create your scheduling logic (classes/functions) and call it here."
-    )
-    st.markdown(
-        """
-Suggested approach:
-1. Design your UML (draft).
-2. Create class stubs (no logic).
-3. Implement scheduling behavior.
-4. Connect your scheduler here and display results.
-"""
-    )
+    if not st.session_state.tasks:
+        st.info("Add at least one task above before generating a schedule.")
+    else:
+        # Build the domain objects from the UI inputs.
+        owner = Owner(owner_name, available_minutes=int(available_minutes))
+        pet = Pet(pet_name, species)
+        owner.add_pet(pet)
+        for task in st.session_state.tasks:
+            pet.add_activity(
+                Activity(
+                    title=task["title"],
+                    duration_minutes=task["duration_minutes"],
+                    priority=task["priority"],
+                )
+            )
+
+        calendar = Calendar()
+        calendar.build_plan(owner, owner.all_activities())
+
+        if calendar.slots:
+            st.success(f"Planned {len(calendar.slots)} activity(ies) for {owner.name}.")
+            st.table(
+                [
+                    {
+                        "Start": f"{start // 60}:{start % 60:02d}",
+                        "End": f"{end // 60}:{end % 60:02d}",
+                        "Activity": activity.title,
+                        "Priority": activity.priority,
+                        "Minutes": activity.duration_minutes,
+                    }
+                    for start, end, activity in calendar.slots
+                ]
+            )
+        else:
+            st.warning("Nothing could be scheduled within the available time.")
+
+        st.markdown("### Why this plan")
+        st.text(calendar.explain())
