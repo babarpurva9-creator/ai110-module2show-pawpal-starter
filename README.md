@@ -63,7 +63,6 @@ Planning 5 task(s) for Purva within a 120-minute budget, highest priority first.
 Scheduled 5 of 5 task(s); 5 of 120 minutes left unused.
 =============================================
 ```
-
 ## 🧪 Testing PawPal+
 
 ```bash
@@ -73,11 +72,61 @@ pytest
 # Run with coverage:
 pytest --cov
 ```
+# What is covered in each test:
+1. test_mark_complete_updates_status:
+A newly created task starts as "pending". After calling mark_complete(), it should flip to "complete" and is_complete() should return True.
+
+2. test_adding_task_increases_pet_task_count:
+A pet starts with zero activities. Each call to add_activity() should grow the list by one — it's checking that tasks are actually being stored.
+
+3. test_add_activity_sets_pet_back_reference:
+When a task is added to a pet, the task itself should know which pet it belongs to (via a task.pet back-reference). This ensures the link goes both ways.
+
+4. test_all_tasks_filters_by_pet_and_status:
+Checks two filtering methods on an owner with multiple pets. tasks_for_pet(dog) should return only that dog's tasks. all_tasks(status="pending") should exclude anything already completed.
+
+test_plan_skips_completed_tasks:
+5. When building a calendar plan, completed tasks shouldn't be scheduled or consume any time budget — only pending tasks should appear in the slots.
+
+6. test_plan_orders_slots_by_time_of_day:
+Even if tasks are added in random order (evening before morning), the calendar should sort them chronologically. It also checks that the first slot's start time matches the owner's day_start_minutes.
+
+7. test_plan_detects_same_window_category_conflict:
+Two tasks in the same time window and same category (e.g., both "feeding" in the morning) should be flagged as a conflict in calendar.conflicts.
+
+8.test_future_recurring_occurrence_not_planned_today:
+Completing a daily task creates tomorrow's occurrence. Since that new task is due tomorrow, today's calendar plan should be empty — and the reasoning log should mention it was deferred.
+
+9. test_conflict_detected_even_when_task_cut_for_budget:
+If two tasks clash but only one fits in the time budget, the second gets cut — but the conflict should still be flagged anyway. Cutting a task doesn't silently hide the scheduling problem.
+
+10.test_invalid_recurrence_falls_back_to_none:
+Unrecognized recurrence strings (like "hourly") should normalize to None rather than causing errors. Known values like "daily" should pass through unchanged.
+
+11.test_sort_by_time_returns_chronological_order:
+Feeds sort_by_time() a deliberately scrambled list — night, untimed, morning, afternoon, evening — and expects them back in strict chronological order: morning → afternoon → evening → night, with untimed tasks always last.
+
+12.test_marking_daily_task_complete_creates_next_day_occurrence:
+The core recurrence contract: completing a daily task should produce a new, distinct task that is pending, due exactly one day from today, and has the same title/duration/recurrence as the original. It should also be auto-registered on the pet.
+
+13.test_scheduler_flags_tasks_sharing_a_time_window:
+Two tasks in the same time window should always produce a non-empty calendar.conflicts list, and the conflict note should name the window (e.g., "morning"). This is the basic conflict-detection smoke test.
 
 Sample test output:
 
 ```
 # Paste your pytest output here
+================================================== test session starts ==================================================
+platform win32 -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Purva\OneDrive\Desktop\Codepath\ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 13 items                                                                                                       
+
+tests\test_pawpal.py .............                                                                                 [100%]
+
+================================================== 13 passed in 0.59s ===================================================
+
+Confidence Level: 5
 ```
 
 ## 📐 Smarter Scheduling

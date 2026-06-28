@@ -2,6 +2,7 @@
 
 import os
 import sys
+from datetime import date, timedelta
 
 # Make the project root importable when running pytest from anywhere.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -147,3 +148,75 @@ def test_invalid_recurrence_falls_back_to_none():
     """An unrecognized recurrence label should normalize to None."""
     assert Task("Walk", 20, recurrence="hourly").recurrence is None
     assert Task("Walk", 20, recurrence="daily").recurrence == "daily"
+
+
+# ── Required coverage ─────────────────────────────────────────────────────────
+# The three tests below directly assert the core contracts: chronological
+# sorting, daily-recurrence rollover, and duplicate-time conflict flagging.
+
+def test_sort_by_time_returns_chronological_order():
+    """sort_by_time() must return tasks in time-of-day order regardless of input.
+
+    Sorting Correctness: feed the four windows in scrambled order and a fifth
+    untimed task; expect morning -> afternoon -> evening -> night, untimed last.
+    """
+    calendar = Calendar()
+    night     = Task("Night meds",   10, "high",   preferred_time="night")
+    morning   = Task("Morning walk", 20, "high",   preferred_time="morning")
+    untimed   = Task("Playtime",     15, "low",    preferred_time="")
+    evening   = Task("Evening walk", 30, "medium", preferred_time="evening")
+    afternoon = Task("Vet visit",    45, "high",   preferred_time="afternoon")
+
+    # Deliberately scrambled input order.
+    ordered = calendar.sort_by_time([night, untimed, morning, afternoon, evening])
+
+    titles = [task.title for task in ordered]
+    assert titles == [
+        "Morning walk",   # morning
+        "Vet visit",      # afternoon
+        "Evening walk",   # evening
+        "Night meds",     # night
+        "Playtime",       # untimed -> always last
+    ]
+
+
+def test_marking_daily_task_complete_creates_next_day_occurrence():
+    """Recurrence Logic: completing a daily task creates a fresh one due tomorrow.
+
+    The new occurrence must be pending, due exactly one day later, and carry the
+    same title/duration/recurrence as the original.
+    """
+    pet = Pet("Bruno", "dog")
+    feed = Task("Feed Bruno", 10, "high", recurrence="daily")
+    pet.add_activity(feed)
+
+    next_feed = feed.mark_complete(pet=pet)
+
+    assert feed.status == "complete"            # original is done
+    assert next_feed is not None                # a follow-up was created
+    assert next_feed is not feed                # ...as a distinct task
+    assert next_feed.status == "pending"        # ready to be done again
+    assert next_feed.due_date == date.today() + timedelta(days=1)  # tomorrow
+    assert next_feed.title == feed.title
+    assert next_feed.duration_minutes == feed.duration_minutes
+    assert next_feed.recurrence == "daily"
+    assert next_feed in pet.activities          # auto-registered on the pet
+
+
+def test_scheduler_flags_tasks_sharing_a_time_window():
+    """Conflict Detection: tasks competing for the same time window are flagged.
+
+    Two tasks both set for the morning window should produce a conflict note
+    and not be reported as conflict-free.
+    """
+    owner = Owner("Sam", available_minutes=120)
+    pet = Pet("Bruno", "dog")
+    owner.add_pet(pet)
+    pet.add_activity(Task("Feed", 10, "high", preferred_time="morning", category="feeding"))
+    pet.add_activity(Task("Meds", 10, "high", preferred_time="morning", category="feeding"))
+
+    calendar = Calendar()
+    calendar.build_plan(owner, owner.all_tasks())
+
+    assert calendar.conflicts, "expected a conflict for two morning tasks"
+    assert any("morning" in note for note in calendar.conflicts)
