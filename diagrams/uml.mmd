@@ -12,11 +12,11 @@ classDiagram
     class Pet {
         +str name
         +str species
-        +list~Activity~ activities
+        +list~Task~ activities
         +add_activity(activity) void
     }
 
-    class Activity {
+    class Task {
         +str title
         +int duration_minutes
         +str priority
@@ -28,12 +28,12 @@ classDiagram
         +list~tuple~ slots
         +list~str~ reasoning
         +build_plan(owner, activities) void
-        +sort_by_priority(activities) list~Activity~
+        +sort_by_priority(activities) list~Task~
         +fits_in_budget(activity, remaining) bool
         +explain() str
     }
 
     Owner "1" --> "*" Pet : owns
-    Pet "1" --> "*" Activity : has
+    Pet "1" --> "*" Task : has
     Owner --> Calendar : uses
-    Calendar ..> Activity : schedules
+    Calendar ..> Task : schedules

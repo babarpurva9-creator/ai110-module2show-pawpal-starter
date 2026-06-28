@@ -4,13 +4,22 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+My initial UML modeled PawPal+ with four classes, each with a single clear responsibility:
+
+- **Owner** — represents the person planning care. Holds their `name`, the `available_minutes` they have in the day (the time budget), and `preferred_times`. Knows how to `add_pet()`.
+- **Pet** — represents an animal being cared for. Holds its `name`, `species`, and the `activities` it needs, and can `add_activity()`.
+- **Task** — a single care task (e.g. a walk or meds). Holds `title`, `duration_minutes`, `priority`, `preferred_time`, and `category`. It is plain data with no behavior of its own.
+- **Calendar** — the scheduling engine. It takes an owner and a list of activities and produces a daily plan. It owns the `slots` (the scheduled items) and the `reasoning` behind them, and exposes `build_plan()`, `sort_by_priority()`, `fits_in_budget()`, and `explain()`.
+
+The key idea was to separate *data* (Owner, Pet, Task) from the *logic that arranges that data* (Calendar), so the scheduling rules live in exactly one place.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes, the design evolved during implementation:
+
+- **Naming and responsibility split.** My very first brainstorm used the name *Scheduler* for the engine. I renamed it to **Calendar** to better fit the pet-care domain, while keeping **Task** as the name for a single care item. I also kept Task as a pure data class rather than giving it scheduling methods — that responsibility belongs to the Calendar.
+- **Priority as a string instead of an enum.** I initially considered a `HIGH/MEDIUM/LOW` enum. I switched `priority` to a simple string because the Streamlit UI already collects priority as a `"low"/"medium"/"high"` string, so a string avoids a conversion layer. The ordering logic lives in the Calendar via a small priority lookup instead.
+- **Overflow handling.** I decided that activities which don't fit the time budget should be *flagged* in the Calendar's `reasoning` rather than silently dropped, so the owner can see *why* something was left out. This pushed me to make `reasoning` a first-class attribute of Calendar feeding the `explain()` output.
 
 ---
 
