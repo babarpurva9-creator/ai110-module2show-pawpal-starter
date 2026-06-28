@@ -131,23 +131,63 @@ Confidence Level: 5
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+All scheduling logic lives in the `Calendar` class in `pawpal_system.py`; `Owner`, `Pet`, and `Task` are plain data holders.
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Priority-first budget selection | `sort_by_priority`, `fits_in_budget`, `build_plan` | Greedy fill by priority (`high → medium → low`, shorter-first tiebreak) while tasks fit `available_minutes`. |
+| Sorting by time of day | `sort_by_time`, `time_rank` | Multi-key sort `(window, priority, duration)`; untimed tasks sort last. |
+| Conflict warnings | `_detect_conflicts` | Flags same-category same-window collisions and over-stuffed preferred windows. |
+| Daily / weekly recurrence | `Task.mark_complete` | Completing a recurring task auto-creates its next occurrence (tomorrow / +7 days). |
+| Due-date deferral | `build_plan`, `all_tasks` | Future occurrences stay out of today's plan (`due_date <= for_date`). |
+| Completed-task filtering | `build_plan`, `all_tasks` | Done tasks never consume budget or reappear. |
+| Explainable reasoning | `reasoning`, `explain` | Every decision is recorded as a human-readable line. |
+
+### Algorithms in detail
+
+1. **Priority-first budget selection** — A greedy fill: tasks are sorted by priority (`high → medium → low`, with shorter duration as a tiebreak), then added one at a time while they fit the owner's remaining `available_minutes`. The most important tasks win scarce time; anything that doesn't fit is recorded in the reasoning log rather than dropped silently.
+
+2. **Sorting by time of day** — A multi-key sort on `(time window, priority, duration)`. Windows order as `morning → afternoon → evening → night`; tasks with no `preferred_time` always sort last (`UNTIMED_RANK`). Selected tasks are then laid out **back-to-back** from the owner's `day_start_minutes`, so slots read as real clock times (e.g. `8:00–8:20`).
+
+3. **Conflict warnings** — Tasks are grouped by `preferred_time` window, then flagged in two cases:
+   - **Same-category collision** — two or more tasks of the same category in one window (e.g. two `feeding` tasks both set to `morning`).
+   - **Preferred-window overload** — more than two tasks stacked into a window the owner explicitly prefers.
+
+   Because `preferred_time` is a coarse window (not a clock time) and tasks are placed back-to-back, this detects *window contention* rather than minute-level overlap. Conflicts are computed over **all** due-today tasks — including ones cut for budget — so a real clash isn't hidden by trimming.
+
+4. **Daily / weekly recurrence** — Completing a recurring task auto-generates its next occurrence: `daily` → due tomorrow, `weekly` → due in seven days. The new task copies the original's title, duration, priority, time, and category, starts `pending`, and (if a pet is passed) attaches itself to that pet automatically. One-off tasks return `None`.
+
+5. **Due-date deferral** — Only tasks `due_date <= for_date` (default today) are planned, so a freshly created tomorrow occurrence stays out of today's plan. Deferred counts are surfaced in the reasoning.
+
+6. **Completed-task filtering** — Done tasks never consume budget or reappear in the plan; `all_tasks(status=...)` also supports pending/complete views.
+
+7. **Explainable reasoning log** — Every decision — budget check, each scheduled slot, skips, deferrals, conflicts — is recorded as a human-readable line, surfaced in both the CLI and the UI.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### CLI demo — `main.py`
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+Run `python main.py`. It builds owner **Purva** (120 min, prefers morning/evening) with two pets, **Bruno** (dog) and **Whiskers** (cat), and adds seven tasks **deliberately out of order** to exercise the algorithms:
+
+1. **Sort by time** — prints all tasks reordered `morning → afternoon → evening → night`, with the untimed *Playtime* last, proving the chronological sort.
+2. **Pending filter** — lists only not-yet-done tasks.
+3. **Completed filter** — lists *Morning walk*, which was marked done during setup.
+4. **Filter by pet** — shows only Bruno's tasks with status.
+5. **Recurrence** — marks daily *Feed Bruno* complete and prints the auto-created next occurrence due **tomorrow**.
+6. **Full schedule + conflicts** — runs `build_plan` and prints `explain()`. The two `afternoon`/`medical` tasks (*Vet appointment* + *Grooming*) trigger a **conflict warning**.
+
+### Interactive demo — `app.py` (Streamlit)
+
+Run `streamlit run app.py`.
+
+1. **Owner & Pet** — set name, available minutes, pet, species, and day-start hour (which anchors slot clock times).
+2. **Add tasks** — a form captures title, duration, category, priority, preferred time, and repeat (none/daily/weekly). Tasks persist in `session_state`.
+3. **Task list** — shows each task; **Mark done** completes it and, for daily/weekly tasks, queues the next occurrence as *upcoming* (`in 1d` / `in 7d`) — the UI mirror of `Task.mark_complete`.
+4. **Generate schedule** — builds the plan from tasks due today and renders, in order:
+   - **Conflict warnings first** — each window clash in its own expander with a remediation tip.
+   - **Metrics + schedule table** — tasks scheduled, minutes used/remaining, and the plan sorted by time of day.
+   - **Tasks cut for budget** — anything skipped, with a tip to add time.
+   - **"Why this plan"** — the full color-coded reasoning log.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+![alt text](image.png)

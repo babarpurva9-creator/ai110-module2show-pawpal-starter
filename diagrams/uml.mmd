@@ -1,19 +1,21 @@
 classDiagram
-    %% PawPal+ class diagram (4 classes)
-    %% Keep this file updated so it matches your final implementation.
 
     class Owner {
         +str name
         +int available_minutes
-        +list~str~ preferred_times
-        +add_pet(pet) void
+        +list preferred_times
+        +int day_start_minutes
+        +list pets
+        +add_pet(pet)
+        +all_tasks(pet, status, due_on_or_before) list
+        +tasks_for_pet(pet) list
     }
 
     class Pet {
         +str name
         +str species
-        +list~Task~ activities
-        +add_activity(activity) void
+        +list activities
+        +add_activity(activity)
     }
 
     class Task {
@@ -22,18 +24,30 @@ classDiagram
         +str priority
         +str preferred_time
         +str category
+        +str recurrence
+        +str status
+        +Pet pet
+        +date due_date
+        +VALID_PRIORITIES$ tuple
+        +mark_complete(pet) Task
+        +is_complete() bool
+        +time_rank() int
     }
 
     class Calendar {
-        +list~tuple~ slots
-        +list~str~ reasoning
-        +build_plan(owner, activities) void
-        +sort_by_priority(activities) list~Task~
+        +list slots
+        +list conflicts
+        +list reasoning
+        +sort_by_priority(activities) list
+        +sort_by_time(activities) list
         +fits_in_budget(activity, remaining) bool
+        +build_plan(owner, activities, for_date)
         +explain() str
+        -_detect_conflicts(tasks, owner) list
     }
 
-    Owner "1" --> "*" Pet : owns
-    Pet "1" --> "*" Task : has
-    Owner --> Calendar : uses
-    Calendar ..> Task : schedules
+    Owner "1" --> "0..*" Pet : owns
+    Pet "1" --> "0..*" Task : has
+    Task "0..*" --> "1" Pet : belongs to
+    Owner "1" --> "1" Calendar : uses
+    Calendar "1" --> "0..*" Task : schedules
